@@ -114,7 +114,8 @@ def test_json_logs_exclude_secrets(client, app):
         assert record["event_type"] == "LOGIN_FAILED"
         assert record["request_id"] == response.headers["X-Request-ID"]
         assert record["status_code"] == 401
-        assert set(record) == {"timestamp", "level", "event_type", "source_ip", "target", "path", "method", "status_code", "request_id"}
+        assert set(record) == {"timestamp", "level", "event_type", "source_ip", "target", "path", "method", "status_code", "request_id",
+                               "event_id", "scenario_id", "severity", "source", "action"}
         assert "private-password-marker" not in stream.getvalue()
         with patch.object(db.session, "scalars", side_effect=RuntimeError("private-exception-marker")):
             assert client.get("/products").status_code == 500

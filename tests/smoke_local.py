@@ -11,6 +11,7 @@ import urllib.parse
 import urllib.request
 
 BASE = os.getenv("SMOKE_BASE_URL", "http://localhost:5000")
+LAB = os.getenv("SMOKE_VULNERABLE_LAB", "1") == "1"
 client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
 
@@ -44,7 +45,8 @@ def main():
     request("/login", {"csrf_token": csrf(), "username": "demo_user1", "password": "DemoUser1!2026"})
     token = csrf("/products/1")
     request("/products/1/reviews", {"csrf_token": token, "content": "로컬 HTTP 검증용 더미 후기 <b>encoded</b>"})
-    assert "&lt;b&gt;encoded&lt;/b&gt;" in request("/products/1/reviews")
+    expected_review = "<b>encoded</b>" if LAB else "&lt;b&gt;encoded&lt;/b&gt;"
+    assert expected_review in request("/products/1/reviews")
     request("/orders", {"csrf_token": token, "product_id": 1, "quantity": 1})
     assert "데모 키보드" in request("/orders")
     request("/logout", {"csrf_token": token})

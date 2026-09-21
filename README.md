@@ -3,7 +3,26 @@ AWS 기반 서비스 보안 구축 프로젝트(서비스)
 
 ## 교육용 Flask 쇼핑몰
 
-AWS 보안 모니터링 프로젝트의 대상 서비스 기본 버전입니다. 현재 범위는 로컬 Docker Compose의 Flask + MySQL 실행까지입니다. 모든 계정, 상품, 후기, 주문은 가상 데이터이며 실제 개인정보, 결제, 배송은 사용하지 않습니다. 의도적인 SQL Injection/XSS 취약점이나 공격 실행 코드는 포함하지 않습니다. 공개된 더미 계정을 사용하는 학습 환경이므로 인터넷에 그대로 공개하지 마세요.
+현재 `vuln_service` 브랜치는 허가된 로컬 교육용 취약 버전입니다. **외부 인터넷에 공개하면 안 됩니다. 로컬 Docker 환경에서만 검증합니다.** 현재 범위는 Flask + MySQL이며 모든 계정, 상품, 후기, 주문은 더미 데이터입니다. 의도적인 SQL Injection/XSS 로직을 포함하지만 공격 실행 스크립트, payload 모음, 실제 개인정보·인증정보는 추가하지 않습니다. AWS WAF와 CloudWatch 연동은 아직 구현하지 않았습니다.
+
+### 로컬 교육 시나리오
+
+| scenario_id | 대상 기능 | 동작 |
+| --- | --- | --- |
+| BRUTE_FORCE | POST /login | 실패 저장, 300초 내 같은 IP 또는 계정의 실패가 5회 이상이면 탐지. 잠금·횟수 제한·애플리케이션 Rate Limit 없음 |
+| DIRECTORY_SEARCH | /admin, /backup, /old, /config | 실제 파일·관리 기능 없이 404와 의심 경로 이벤트. 다른 없는 URL은 INVALID_PATH |
+| SQL_INJECTION | GET /search?q=... | 교육 모드에서 입력을 SQL 문자열에 결합. 정상 부분 검색 유지, 상세 오류 비노출 |
+| XSS | POST/GET /products/&lt;id&gt;/reviews | 교육 모드에서 저장된 후기의 HTML을 인코딩 없이 출력 |
+
+`app/services/lab.py`에 탐지와 취약 검색·후기 선택을 분리했습니다. `BRUTE_FORCE_THRESHOLD`, `BRUTE_FORCE_WINDOW_SECONDS`는 Flask 설정으로 변경할 수 있습니다. 기준 이상인 각 실패마다 의심 이벤트를 남기지만 요청을 차단하지 않습니다. CSRF·입력 검증 실패도 login_attempts에 저장하며, 파싱 불가능한 본문은 빈 계정명으로 기록합니다. DB 장애 중에는 저장을 보장할 수 없고 일반 오류 응답을 반환합니다.
+
+`VULNERABLE_LAB=1`은 `vuln_service` 전용이며 로컬 Compose에서 명시적으로 활성화합니다. 기본 Python 설정은 기존 안전 검색/후기를 보존하여 회귀 테스트에 사용합니다. 이는 전체 보안 개선 모드가 아니며 로그인 제한은 여전히 없습니다. production 환경에서는 교육 모드 시작을 거부합니다. 런타임에는 Git이 없으므로 브랜치명을 자동 검사하지 않습니다.
+
+취약 후기 출력은 `templates/lab/review_content.html`에 한정합니다. 해당 GET 페이지에서만 CSP의 inline script를 허용하며 외부 리소스·연결은 제한합니다. 이 CSP는 취약 후기의 안전성을 보장하지 않습니다. 다른 화면은 기존 자동 인코딩과 CSP를 유지합니다. 개선 시 안전 partial과 엄격한 CSP로 교체하세요.
+
+직접 실행하는 Flask는 `127.0.0.1`에 바인딩합니다. Docker 내부 Gunicorn은 포트 전달을 위해 `0.0.0.0:5000`을 사용하되 호스트 공개는 `127.0.0.1:5000`뿐입니다. MySQL 3306은 호스트에 공개하지 않으며 기존 쇼핑몰 DB 계정·권한을 유지합니다. DB root나 다른 DB 접근 권한을 추가하지 않습니다. 실제 데이터는 이 DB에 넣지 마세요.
+
+자세한 구현 메모는 [docs/scenarios.md](docs/scenarios.md), 기존 시나리오 원문은 [docs/scenario.md](docs/scenario.md)를 참고하세요. 기존 문서의 AWS 구성은 향후 구상이며 이번 작업 범위가 아닙니다.
 
 ### 구조
 
@@ -99,7 +118,7 @@ DB에는 Werkzeug scrypt 해시만 저장됩니다. 관리자 역할은 저장 �
 | POST /orders | product_id, quantity로 더미 주문 생성 (수량 1~100) |
 | GET /orders | 자신의 주문만 조회 |
 
-모든 POST는 화면의 hidden 필드 `csrf_token`과 해당 세션 쿠키가 필요합니다. 인증되지 않은 후기/주문 생성은 401, 잘못된 입력/CSRF는 400, 없는 상품은 404, 재고 부족은 409입니다. 주문/후기 성공은 303 리다이렉트입니다. 주문 금액은 DB 가격으로 계산하며 MySQL 행 잠금과 하나의 트랜잭션으로 재고 차감 및 주문 생성을 처리합니다. ORM 파라미터 바인딩, 검색 와일드카드 이스케이프, Jinja2 자동 출력 인코딩을 사용합니다.
+모든 정상 POST는 화면의 hidden 필드 `csrf_token`과 해당 세션 쿠키가 필요합니다. 더미·없는 경로는 CSRF와 관계없이 404입니다. 인증되지 않은 후기/주문 생성은 401, 잘못된 입력/CSRF는 400, 없는 상품은 404, 재고 부족은 409입니다. 주문/후기 성공은 303 리다이렉트입니다. 주문 금액은 DB 가격으로 계산하며 MySQL 행 잠금과 하나의 트랜잭션으로 재고 차감 및 주문 생성을 처리합니다. 교육 모드의 검색과 후기 출력만 위 설명처럼 의도적으로 취약하게 동작합니다.
 
 ### 테스트 및 상태 확인
 
@@ -116,7 +135,7 @@ python tests/smoke_local.py
 
 Bash에서는 `.venv/bin/python`을 사용합니다. 가상환경을 활성화했다면 `python -m pytest`로도 실행할 수 있습니다. 테스트는 매번 별도의 메모리 SQLite DB를 만들며 `.env`나 운영 DB가 필요하지 않습니다. MySQL 고유 잠금/초기화 동작은 Compose 실행으로 별도 확인해야 합니다.
 
-통합 검증 스크립트는 더미 후기 1개와 주문 1개를 생성하고 DB에 보존합니다. 반복 실행하면 키보드 재고가 차감됩니다. `SMOKE_BASE_URL`로 대상 주소를 바꿀 수 있습니다.
+통합 검증 스크립트는 더미 후기 1개와 주문 1개를 생성하고 DB에 보존합니다. 반복 실행하면 키보드 재고가 차감됩니다. `SMOKE_BASE_URL`은 허가된 로컬 주소에만 지정하세요. 기본 검사는 교육 모드의 후기 출력을 확인하며, 안전 출력 설정을 비교할 때는 `SMOKE_VULNERABLE_LAB=0`으로 실행합니다.
 
 정상 `/health` 응답은 `{"status":"healthy","service":"shop-app"}`, `/ready`는 `{"status":"ready","database":"connected"}`입니다. 매 응답의 `X-Request-ID`로 로그를 연결할 수 있습니다.
 
@@ -133,7 +152,7 @@ docker compose -f docker-compose.local.yml up -d --wait
 
 ### 로그 및 인프라 연동 규격
 
-앱 이벤트는 stdout에 한 줄 JSON으로 출력합니다. 필드는 `timestamp` (UTC ISO-8601), `level`, `event_type`, `source_ip`, `target=shop-flask`, `path`, `method`, `status_code`, `request_id`입니다. 이벤트는 LOGIN_SUCCESS, LOGIN_FAILED, PRODUCT_SEARCH, PRODUCT_VIEWED, REVIEW_CREATED, ORDER_CREATED, INVALID_PATH, INPUT_VALIDATION_FAILED, DB_CONNECTION_FAILED, SERVER_ERROR입니다. 요청 본문, 검색어, 비밀번호, 쿠키, 세션 토큰, SQL 및 예외 원문은 기록하지 않습니다. Gunicorn 프로세스 시작/종료 로그는 stderr의 일반 텍스트이며 애플리케이션 JSON 이벤트와 구분하여 수집합니다. 원문 요청 URL을 남기는 Gunicorn access log는 켜지 않습니다.
+앱 이벤트는 stdout에 한 줄 JSON으로 출력합니다. 필드는 `event_id`, `scenario_id`, `severity`, `source=SHOP_APP`, `action`, `timestamp` (UTC ISO-8601), `level`, `event_type`, `source_ip`, `target=shop-flask`, `path`, `method`, `status_code`, `request_id`입니다. 시나리오와 관계없는 일반 이벤트의 scenario_id는 null입니다. 탐지는 HIGH/DETECTED, 정상 동작은 INFO/NORMAL로 기록하며 DETECTED는 차단을 뜻하지 않습니다. 기존 이벤트에 BRUTE_FORCE_SUSPECTED, SUSPICIOUS_PATH_REQUEST, SUSPICIOUS_SEARCH_INPUT, DATABASE_QUERY_ERROR, SUSPICIOUS_REVIEW_INPUT을 추가했습니다. 요청 본문, 검색어, 비밀번호, 쿠키, 세션 토큰, SQL 및 예외 원문은 기록하지 않습니다. Gunicorn 프로세스 시작/종료 로그는 stderr의 일반 텍스트이며 애플리케이션 JSON 이벤트와 구분합니다. Gunicorn access log는 켜지 않습니다.
 
 현재 `source_ip`는 직접 연결한 클라이언트 주소이며 임의의 `X-Forwarded-For`를 신뢰하지 않습니다. ALB/Ingress 도입 시 실제 프록시 수와 신뢰 경계를 확인한 뒤 전달 IP 처리를 추가해야 합니다.
 
@@ -149,9 +168,19 @@ Terraform/인프라 담당자는 다음 규격을 사용합니다.
 
 ### 현재 미구현 및 다음 단계
 
-Terraform, AWS 리소스, ECR Push, EC2/K3s 배포, GitHub Actions 배포, CloudWatch 수집 인프라는 구현하지 않았습니다. 실제 결제/배송, 회원가입, 관리자 CRUD, 의도적인 취약점 및 공격 실행 코드도 없습니다. 다음 단계는 ECR → EC2/K3s → GitHub Actions 연동이며, 그 전에 마이그레이션, HTTPS/프록시 신뢰 설정, 비밀값 관리, 로그인 시도 제한과 MySQL 동시 주문 테스트를 보완하는 것을 권장합니다.
+AWS WAF, CloudWatch, Terraform, AWS 리소스, ECR Push, EC2/K3s 배포, GitHub Actions 배포는 구현하지 않았습니다. 실제 결제/배송, 회원가입, 관리자 CRUD, 공격 실행 코드도 없습니다. 다음 작업은 별도 개선 버전에서 로그인 시도 제한, 검색 파라미터 바인딩, 후기 출력 인코딩 및 CSP 복원, MySQL 통합 테스트 보완을 권장합니다. 현재 취약 버전의 외부 배포는 범위에 포함하지 않습니다.
 
-### 직접 검증 결과 (2026-09-21)
+### vuln_service 검증 결과 (2026-09-21)
+
+- 기본 시스템 Python에는 pytest가 없어 첫 실행은 실패했습니다. 기존 `.venv/Scripts`를 PATH 앞에 둔 `python -m pytest`는 **32 passed** (기존 11개 + 새 시나리오 21개)입니다.
+- `docker compose -f docker-compose.local.yml config --quiet` 성공. 비밀값 출력 방지를 위해 config 전문은 출력하지 않았습니다.
+- 기본 build 첫 실행은 PyPI TLS 인증서 오류로 실패했습니다. 기존 `.local/compose-ca.yml`의 CA secret을 사용한 build 성공 후, 기본 build도 캐시를 사용하여 성공했습니다. TLS 검증은 비활성화하지 않았습니다.
+- `up -d --wait` 성공, 앱과 MySQL 모두 healthy. 호스트 공개는 앱의 `127.0.0.1:5000`뿐이며 MySQL 호스트 포트는 없습니다.
+- 실제 HTTP `/health`, `/ready`, `/products` 모두 200. `python tests/smoke_local.py`로 실제 MySQL 검색·로그인·후기·주문·계정 분리 검사 통과. 실행 코드를 포함하지 않는 더미 후기 1개, 주문 1개, 로그인 기록 3개가 추가로 보존됩니다.
+- `down` 완료 후 `aws-security-service_shop-db-data` Named Volume 보존 확인. `.env`, DB 백업, 키는 만들거나 출력하지 않았습니다. commit/push/merge는 실행하지 않았습니다.
+- SQLite 테스트는 이벤트와 실패 집계를 검증합니다. 브라우저에서 실제 스크립트 실행이나 공격 자동화, AWS 탐지는 검증하지 않았습니다.
+
+### 기존 기본 버전 검증 이력 (2026-09-21, 교육 모드 도입 전)
 
 - Python 3.12: `python -m pytest -q` → 11 passed (격리된 테스트 DB).
 - `docker compose -f docker-compose.local.yml config --quiet` → 성공.
