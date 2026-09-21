@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Demo Shop · 교육용 쇼핑몰</title><link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"></head>
+<body>
+<header><nav><a class="brand" href="{{ url_for('products.index') }}">DEMO SHOP</a><a href="{{ url_for('products.index') }}">상품</a>
+{% if g.user %}<a href="{{ url_for('orders.index') }}">내 주문</a><span>{{ g.user.username }} · {{ '관리자' if g.user.role == 'admin' else '일반 사용자' }}</span><form action="{{ url_for('auth.logout') }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button>로그아웃</button></form>
+{% else %}<a href="{{ url_for('auth.login') }}">로그인</a>{% endif %}</nav></header>
+<main>{% block content %}{% endblock %}</main>
+<footer>보안 모니터링 학습용 · 모든 계정과 상품은 더미 데이터입니다. 실제 결제 및 배송은 진행되지 않습니다.</footer>
+</body></html>
