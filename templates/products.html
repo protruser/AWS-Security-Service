@@ -1,0 +1,6 @@
+{% extends 'base.html' %}{% block content %}
+<section class="hero"><p>SECURITY MONITORING LAB</p><h1>작은 쇼핑몰, 새로운 실험.</h1><p>교육용 상품을 둘러보고 로그인, 후기, 더미 주문 흐름을 확인하세요.</p></section>
+<form class="search" action="{{ url_for('products.search') }}"><label for="q">상품 이름 검색</label><input id="q" name="q" maxlength="120" value="{{ query or '' }}" placeholder="상품 이름"><button>검색</button></form>
+<h2>{{ '검색 결과: ' ~ query if query is not none else '전체 상품' }}</h2>
+<div class="grid">{% for product in products %}<article class="card"><span class="tag">DEMO {{ '%02d'|format(product.id) }}</span><h3><a href="{{ url_for('products.detail', product_id=product.id) }}">{{ product.name }}</a></h3><p>{{ product.description }}</p><strong>{{ '{:,.0f}'.format(product.price) }}원</strong><p>재고 {{ product.stock }}개</p></article>{% else %}<p>검색 결과가 없습니다.</p>{% endfor %}</div>
+{% endblock %}
