@@ -4,6 +4,7 @@ from pathlib import Path
 from flask import Flask, g, render_template, request, session
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import HTTPException
+from werkzeug.middleware.proxy_fix import ProxyFix
 from app.config import Config, environment_config
 from app.extensions import db
 from app.logging_config import configure_logging, event
@@ -21,6 +22,8 @@ def create_app(test_config=None):
     else:
         app.config.from_object(Config)
         app.config.update(test_config)
+    if app.config["TRUST_PROXY_HEADERS"]:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
     db.init_app(app)
     configure_logging(app)
     from app.models import User
