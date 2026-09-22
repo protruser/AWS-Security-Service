@@ -27,11 +27,14 @@ def main():
         for index in sorted(table.indexes, key=lambda item: item.name):
             schema.append(str(CreateIndex(index).compile(dialect=dialect)) + ";")
     (ROOT / "db/schema.sql").write_text("\n\n".join(schema) + "\n", encoding="utf-8")
-    seed = ["-- FICTIONAL TRAINING DATA ONLY. Public demo passwords are documented in README.\nSET NAMES utf8mb4;\nSTART TRANSACTION;"]
+    seed = ["-- FICTIONAL TRAINING DATA ONLY. Intentionally weak public passwords; never use with real data.\nSET NAMES utf8mb4;\nSTART TRANSACTION;"]
     for i, (username, password, role) in enumerate([
-        ("demo_user1", "DemoUser1!2026", "user"),
-        ("demo_user2", "DemoUser2!2026", "user"),
-        ("demo_admin", "DemoAdmin!2026", "admin"),
+        ("user1", "1234", "user"),
+        ("user2", "password", "user"),
+        ("guest", "guest", "user"),
+        ("test", "test", "user"),
+        ("shop", "shop", "user"),
+        ("admin", "admin", "admin"),
     ], 1):
         seed.append(f"INSERT INTO users (id, username, password_hash, role, created_at) VALUES ({i}, {quoted(username)}, {quoted(generate_password_hash(password))}, {quoted(role)}, UTC_TIMESTAMP());")
     products = [("데모 키보드", 45000), ("데모 마우스", 18000), ("데모 노트", 3500),

@@ -1,4 +1,3 @@
-import secrets
 import uuid
 from pathlib import Path
 from flask import Flask, g, render_template, request, session
@@ -8,7 +7,6 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from app.config import Config, environment_config
 from app.extensions import db
 from app.logging_config import configure_logging, event
-from app.services.security import csrf_token
 from app.services.lab import SUSPICIOUS_PATHS, record_login_attempt
 
 
@@ -30,8 +28,6 @@ def create_app(test_config=None):
     from app.routes import health, auth, products, reviews, orders
     for module in (health, auth, products, reviews, orders):
         app.register_blueprint(module.bp)
-    app.jinja_env.globals["csrf_token"] = csrf_token
-
     @app.before_request
     def prepare_request():
         g.request_id = str(uuid.uuid4())
@@ -46,18 +42,10 @@ def create_app(test_config=None):
             return None
         if session.get("user_id"):
             g.user = db.session.get(User, session["user_id"])
-        if request.method == "POST":
-            # Report unauthenticated protected writes as 401 before CSRF validation.
-            if request.endpoint in {"reviews.create", "orders.create"} and g.user is None:
-                from flask import abort
-                abort(401)
-            supplied = request.form.get("csrf_token", "")
-            expected = session.get("csrf_token", "")
-            if not expected or not secrets.compare_digest(supplied, expected):
-                if request.endpoint == "auth.login":
-                    record_login_attempt(request.form.get("username", ""), False, 400)
-                from flask import abort
-                abort(400)
+        if (request.method == "POST" and request.endpoint in {"reviews.create", "orders.create"}
+                and g.user is None):
+            from flask import abort
+            abort(401)
 
     @app.after_request
     def finish_request(response):

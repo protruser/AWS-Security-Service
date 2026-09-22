@@ -1,0 +1,135 @@
+name: Deploy shop app
+
+on:
+  push:
+    branches:
+      - vuln_service
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: shop-app-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Test, build, and deploy
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      SHOP_APP_ECR_URI: ${{ vars.SHOP_APP_ECR_URI }}
+      SHOP_APP_INSTANCE_ID: ${{ vars.SHOP_APP_INSTANCE_ID }}
+      SHOP_DB_SECRET_ID: ${{ vars.SHOP_DB_SECRET_ID }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install test dependencies
+        run: python -m pip install --requirement requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest -vv -p no:cacheprovider
+
+      - name: Validate deployment variables
+        shell: bash
+        run: |
+          for variable_name in AWS_REGION AWS_ROLE_ARN SHOP_APP_ECR_URI SHOP_APP_INSTANCE_ID SHOP_DB_SECRET_ID; do
+            if [[ -z "${!variable_name:-}" ]]; then
+              echo "Required GitHub variable is not configured: ${variable_name}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push immutable image
+        env:
+          IMAGE_URI: ${{ env.SHOP_APP_ECR_URI }}:${{ github.sha }}
+        run: |
+          docker build --tag "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+
+      - name: Deploy through AWS Systems Manager
+        shell: bash
+        env:
+          IMAGE_URI: ${{ env.SHOP_APP_ECR_URI }}:${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          script_b64="$(base64 --wrap=0 deploy/shop-app/deploy.sh)"
+          export script_b64
+          python - <<'PY'
+          import json
+          import os
+          import shlex
+
+          command = " ".join(
+              [
+                  "printf %s " + shlex.quote(os.environ["script_b64"]),
+                  "| base64 --decode > /tmp/deploy-shop-app.sh",
+                  "&& chmod 700 /tmp/deploy-shop-app.sh",
+                  "&& /tmp/deploy-shop-app.sh",
+                  shlex.quote(os.environ["IMAGE_URI"]),
+                  shlex.quote(os.environ["AWS_REGION"]),
+                  shlex.quote(os.environ["SHOP_DB_SECRET_ID"]),
+              ]
+          )
+          with open("ssm-parameters.json", "w", encoding="utf-8") as output:
+              json.dump({"commands": [command], "executionTimeout": ["600"]}, output)
+          PY
+
+          command_id="$(aws ssm send-command \
+            --instance-ids "$SHOP_APP_INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "Deploy shop-app ${GITHUB_SHA}" \
+            --parameters file://ssm-parameters.json \
+            --query 'Command.CommandId' \
+            --output text)"
+
+          status="Pending"
+          for _ in $(seq 1 120); do
+            status="$(aws ssm get-command-invocation \
+              --command-id "$command_id" \
+              --instance-id "$SHOP_APP_INSTANCE_ID" \
+              --query 'Status' \
+              --output text 2>/dev/null || true)"
+            case "$status" in
+              Success)
+                echo "SSM deployment completed successfully."
+                exit 0
+                ;;
+              Failed|Cancelled|TimedOut|Cancelling)
+                echo "SSM deployment failed with status: $status" >&2
+                aws ssm get-command-invocation \
+                  --command-id "$command_id" \
+                  --instance-id "$SHOP_APP_INSTANCE_ID" \
+                  --query '{Status:Status,StandardOutput:StandardOutputContent,StandardError:StandardErrorContent}'
+                exit 1
+                ;;
+            esac
+            sleep 5
+          done
+
+          echo "Timed out waiting for SSM command $command_id (last status: $status)." >&2
+          exit 1

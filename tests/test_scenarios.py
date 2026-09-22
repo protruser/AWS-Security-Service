@@ -11,7 +11,7 @@ from sqlalchemy.exc import OperationalError
 from app.extensions import db
 from app.logging_config import JsonFormatter
 from app.models import LoginAttempt, utcnow
-from conftest import login, token
+from conftest import login
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ def test_repeated_failures_detect_without_blocking(client, app, events, same_acc
     for index in range(4):
         response = client.post("/login", data={
             "username": "missing" if same_account else f"missing-{index}",
-            "password": "dummy-wrong", "csrf_token": token(client),
+            "password": "dummy-wrong",
         }, environ_overrides={"REMOTE_ADDR": f"127.0.0.{index + 1}" if same_account else "127.0.0.1"})
         assert response.status_code == 401
     with app.app_context():
@@ -49,16 +49,16 @@ def test_repeated_failures_detect_without_blocking(client, app, events, same_acc
 
 def test_old_failures_do_not_trigger(client, app, events):
     with app.app_context():
-        db.session.add_all([LoginAttempt(username="demo_user1", source_ip="127.0.0.1", success=False,
-                                        created_at=utcnow() - timedelta(hours=1)) for _ in range(5)])
+        db.session.add_all([LoginAttempt(username="user1", source_ip="127.0.0.1", success=False,
+                                         created_at=utcnow() - timedelta(hours=1)) for _ in range(5)])
         db.session.commit()
     login(client, password="dummy-wrong")
     assert not any(row["event_type"] == "BRUTE_FORCE_SUSPECTED" for row in events())
 
 
-def test_invalid_login_and_csrf_failures_are_stored(client, app, events):
+def test_invalid_login_failures_are_stored(client, app, events):
     assert client.post("/login", data={"username": "dummy"}).status_code == 400
-    assert client.post("/login", data={"username": "", "csrf_token": token(client)}).status_code == 400
+    assert client.post("/login", data={"username": ""}).status_code == 400
     with app.app_context():
         assert len(db.session.scalars(db.select(LoginAttempt)).all()) == 2
     assert sum(row["event_type"] == "LOGIN_FAILED" for row in events()) == 2
@@ -114,13 +114,13 @@ def test_query_error_is_redacted(client, events):
 def test_reviews_and_validation(client, events):
     login(client)
     for content in ["normal-dummy-review", "<b>review-sentinel</b>"]:
-        assert client.post("/products/1/reviews", data={"content": content, "csrf_token": token(client)}).status_code == 303
+        assert client.post("/products/1/reviews", data={"content": content}).status_code == 303
     response = client.get("/products/1/reviews")
     assert b"normal-dummy-review" in response.data
     assert b"<b>review-sentinel</b>" in response.data
     assert "script-src 'unsafe-inline'" in response.headers["Content-Security-Policy"]
     assert "unsafe-inline" not in client.get("/products").headers["Content-Security-Policy"]
-    assert client.post("/products/1/reviews", data={"content": " ", "csrf_token": token(client)}).status_code == 400
+    assert client.post("/products/1/reviews", data={"content": " "}).status_code == 400
     assert any(row["event_type"] == "SUSPICIOUS_REVIEW_INPUT" and row["scenario_id"] == "XSS" for row in events())
     assert events()[-1]["event_type"] == "INPUT_VALIDATION_FAILED"
     assert events()[-1]["scenario_id"] == "XSS"
@@ -130,12 +130,11 @@ def test_event_contract_and_secrets(client, app, events):
     client.set_cookie("dummy", "private-cookie-sentinel")
     with client.session_transaction() as session:
         session["private"] = "private-session-sentinel"
-    csrf = token(client)
-    client.post("/login", data={"username": "missing", "password": "private-password-sentinel", "csrf_token": csrf},
+    client.post("/login", data={"username": "missing", "password": "private-password-sentinel"},
                 headers={"Authorization": "Bearer private-bearer-sentinel", "X-Forwarded-For": "192.0.2.9"})
     serialized = json.dumps(events())
     for secret in ["private-cookie-sentinel", "private-session-sentinel", "private-password-sentinel",
-                   "private-bearer-sentinel", csrf, app.config["SECRET_KEY"]]:
+                   "private-bearer-sentinel", app.config["SECRET_KEY"]]:
         assert secret not in serialized
     for row in events():
         assert row["source"] == "SHOP_APP" and row["target"] == "shop-flask"

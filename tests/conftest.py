@@ -12,8 +12,8 @@ def app():
     with app.app_context():
         db.create_all()
         db.session.add_all([
-            User(username="demo_user1", password_hash=generate_password_hash("DemoUser1!2026"), role="user"),
-            User(username="demo_user2", password_hash=generate_password_hash("DemoUser2!2026"), role="user"),
+            User(username="user1", password_hash=generate_password_hash("1234"), role="user"),
+            User(username="user2", password_hash=generate_password_hash("password"), role="user"),
             Product(name="Demo Keyboard", description="Dummy product", price=12000, stock=5),
         ])
         db.session.commit()
@@ -28,11 +28,5 @@ def client(app):
     return app.test_client()
 
 
-def token(client):
-    client.get("/login")
-    with client.session_transaction() as session:
-        return session["csrf_token"]
-
-
-def login(client, username="demo_user1", password="DemoUser1!2026"):
-    return client.post("/login", data={"username": username, "password": password, "csrf_token": token(client)})
+def login(client, username="user1", password="1234"):
+    return client.post("/login", data={"username": username, "password": password})

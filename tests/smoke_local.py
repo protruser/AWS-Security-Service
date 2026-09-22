@@ -5,7 +5,6 @@ Creates one fictional review and one order, retained in the local database.
 import http.cookiejar
 import json
 import os
-import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -29,10 +28,6 @@ def request(path, data=None, expected=200):
         return body
 
 
-def csrf(path="/login"):
-    return re.search(r'name="csrf_token" value="([^"]+)"', request(path)).group(1)
-
-
 def main():
     assert json.loads(request("/health"))["status"] == "healthy"
     assert json.loads(request("/ready"))["database"] == "connected"
@@ -41,16 +36,15 @@ def main():
     request("/missing-smoke", expected=404)
     request("/orders", {"product_id": 1, "quantity": 1}, expected=401)
     request("/products/1/reviews", {"content": "unauthenticated"}, expected=401)
-    request("/login", {"csrf_token": csrf(), "username": "demo_user1", "password": "wrong-demo-password"}, expected=401)
-    request("/login", {"csrf_token": csrf(), "username": "demo_user1", "password": "DemoUser1!2026"})
-    token = csrf("/products/1")
-    request("/products/1/reviews", {"csrf_token": token, "content": "로컬 HTTP 검증용 더미 후기 <b>encoded</b>"})
+    request("/login", {"username": "user1", "password": "wrong-demo-password"}, expected=401)
+    request("/login", {"username": "user1", "password": "1234"})
+    request("/products/1/reviews", {"content": "로컬 HTTP 검증용 더미 후기 <b>encoded</b>"})
     expected_review = "<b>encoded</b>" if LAB else "&lt;b&gt;encoded&lt;/b&gt;"
     assert expected_review in request("/products/1/reviews")
-    request("/orders", {"csrf_token": token, "product_id": 1, "quantity": 1})
+    request("/orders", {"product_id": 1, "quantity": 1})
     assert "데모 키보드" in request("/orders")
-    request("/logout", {"csrf_token": token})
-    request("/login", {"csrf_token": csrf(), "username": "demo_admin", "password": "DemoAdmin!2026"})
+    request("/logout", {})
+    request("/login", {"username": "admin", "password": "admin"})
     assert "관리자" in request("/products")
     assert "데모 키보드" not in request("/orders")
     print("All local MySQL HTTP smoke checks passed.")

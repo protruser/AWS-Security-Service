@@ -1,9 +1,12 @@
--- FICTIONAL TRAINING DATA ONLY. Public demo passwords are documented in README.
+-- FICTIONAL TRAINING DATA ONLY. Intentionally weak public passwords; never use with real data.
 SET NAMES utf8mb4;
 START TRANSACTION;
-INSERT INTO users (id, username, password_hash, role, created_at) VALUES (1, 'demo_user1', 'scrypt:32768:8:1$w3tEBPhbYxJ3hIHL$2faba482ecf7e4a54f621d8150404af8a2453ba4aedb0f1d8fbe37d68d3a03e54ba4b554db88ce9f9b1dafee46c20f926ac0bd1672498108da0e057b6b64e3d8', 'user', UTC_TIMESTAMP());
-INSERT INTO users (id, username, password_hash, role, created_at) VALUES (2, 'demo_user2', 'scrypt:32768:8:1$vo3lT45LlsTcWN8v$a1be3d9e3e93bbf64173a8330288b81fb8f430dabeb14624ed5b62d45fd60ae9db4c042376419df60c97d74e05ed1af2d95dafd762ff3b2a1c478226025a1e36', 'user', UTC_TIMESTAMP());
-INSERT INTO users (id, username, password_hash, role, created_at) VALUES (3, 'demo_admin', 'scrypt:32768:8:1$nX85KuBOasN2BMxH$ce22cbe158ea59c947ed76b6ef5d648475de9812a617f86f33e5fc0e8c79c0f7d7d2e3860334b77de7f2f0d11fedb4abbfd47b04a168886ee2307de4da92d6bd', 'admin', UTC_TIMESTAMP());
+INSERT INTO users (id, username, password_hash, role, created_at) VALUES (1, 'user1', 'scrypt:32768:8:1$Emyp8ig7AYvW8ET8$eba7a5ff823a481aa5833df67acc5d81e6b23f7f5f208eeebbd04741dcb64eb0d13cd39e16571e11e4c7908a2315eef87472bc959b961f911604699116e09c5c', 'user', UTC_TIMESTAMP());
+INSERT INTO users (id, username, password_hash, role, created_at) VALUES (2, 'user2', 'scrypt:32768:8:1$yO81hVxwhnQ5AKro$de84c4c85cd730055aa7f7a033d4a01e5f2aaae961472d5def099670a1b8a23a8a609e3c95e788be406d815a44c1b3537adbdd0f20b50d5e3d14c2ba80906027', 'user', UTC_TIMESTAMP());
+INSERT INTO users (id, username, password_hash, role, created_at) VALUES (3, 'guest', 'scrypt:32768:8:1$UDVplTQJwUQKRYdS$fdc37d391959e32963e5176c45208dcd3eaa2a09aea0e23044f5288625d7276bddb41086c207463b438db29a5abd138094fc130d56301ee880a3b2402759113e', 'user', UTC_TIMESTAMP());
+INSERT INTO users (id, username, password_hash, role, created_at) VALUES (4, 'test', 'scrypt:32768:8:1$k6gRXt2m6GG8vMVw$b017ecc34d8578d91bac210cf08d906f08702d861d239218d8ada9a2239deb81e1f205d59ead8ffd8afe07b154ea86d3e3ae89036b4011c7bedc7854e1545873', 'user', UTC_TIMESTAMP());
+INSERT INTO users (id, username, password_hash, role, created_at) VALUES (5, 'shop', 'scrypt:32768:8:1$8B2VK5FbUTTB9ROd$922873ba1520ec0d706624bc2dd3c2841cf53480860ca623cc8ae3b83ac20f040c460d6f27338d3314871cfb1f67aa5be1bd1f9edc19b60c5df7beac8665e53e', 'user', UTC_TIMESTAMP());
+INSERT INTO users (id, username, password_hash, role, created_at) VALUES (6, 'admin', 'scrypt:32768:8:1$fLNpZEfBfAnbQALz$e22969ff3b056df297e25d94b84ac5654f5b801b7eba24213db1af83b44688798e1db341c5a0788618a8989404c1b528f0f5e350a21efbf1738f40d001e6719a', 'admin', UTC_TIMESTAMP());
 INSERT INTO products (id, name, description, price, stock, created_at) VALUES (1, '데모 키보드', '교육용 가상 상품입니다. 실제 판매 및 배송하지 않습니다.', 45000, 19, UTC_TIMESTAMP());
 INSERT INTO products (id, name, description, price, stock, created_at) VALUES (2, '데모 마우스', '교육용 가상 상품입니다. 실제 판매 및 배송하지 않습니다.', 18000, 20, UTC_TIMESTAMP());
 INSERT INTO products (id, name, description, price, stock, created_at) VALUES (3, '데모 노트', '교육용 가상 상품입니다. 실제 판매 및 배송하지 않습니다.', 3500, 20, UTC_TIMESTAMP());
