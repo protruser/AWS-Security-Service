@@ -24,7 +24,9 @@ class DevelopmentConfig(Config):
 
 class LabConfig(Config):
     VULNERABLE_LAB = True
-    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = (
+        os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
+    )
     TRUST_PROXY_HEADERS = True
 
 

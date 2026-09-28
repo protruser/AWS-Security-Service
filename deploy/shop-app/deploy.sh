@@ -32,12 +32,17 @@ done
 [[ "$ECR_REGISTRY" != "$IMAGE_URI" ]] || fail "image URI must include an ECR registry and repository"
 
 install -d -m 700 "$ENV_DIR"
+
 temporary_env="$(mktemp "${ENV_DIR}/app.env.XXXXXX")"
+temporary_secret="$(mktemp "${ENV_DIR}/secret.json.XXXXXX")"
+
 cleanup() {
-  rm -f "$temporary_env"
+  rm -f "$temporary_env" "$temporary_secret"
 }
+
 trap cleanup EXIT
-chmod 600 "$temporary_env"
+
+chmod 600 "$temporary_env" "$temporary_secret"
 
 secret_key=""
 if [[ -f "$ENV_FILE" ]]; then
@@ -60,15 +65,47 @@ if [[ -z "$secret_key" ]]; then
 fi
 
 log "Retrieving application configuration from AWS Secrets Manager."
+
 aws secretsmanager get-secret-value \
   --region "$AWS_REGION" \
   --secret-id "$SHOP_DB_SECRET_ID" \
   --query SecretString \
-  --output text |
+  --output text \
+  >"$temporary_secret"
 
+jq -er '
+  if type != "object" then
+    error("secret must be a JSON object")
+  else
+    {
+      DB_HOST: (.host // ""),
+      DB_PORT: ((.port // "") | tostring),
+      DB_NAME: (.database // ""),
+      DB_USER: (.username // ""),
+      DB_PASSWORD: (.password // "")
+    }
+  end
+  | if all(
+      .[];
+      type == "string"
+      and length > 0
+      and (test("[\r\n]") | not)
+    )
+    then .
+    else error("required secret values must be non-empty single-line strings")
+    end
+  | to_entries[]
+  | "\(.key)=\(.value)"
+' "$temporary_secret" >"$temporary_env"
 
 printf 'SECRET_KEY=%s\n' "$secret_key" >>"$temporary_env"
-printf '%s\n' 'FLASK_ENV=lab' 'VULNERABLE_LAB=1' >>"$temporary_env"
+
+printf '%s\n' \
+  'FLASK_ENV=lab' \
+  'VULNERABLE_LAB=1' \
+  'SESSION_COOKIE_SECURE=false' \
+  >>"$temporary_env"
+
 mv -f "$temporary_env" "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 
