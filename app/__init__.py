@@ -25,8 +25,8 @@ def create_app(test_config=None):
     db.init_app(app)
     configure_logging(app)
     from app.models import User
-    from app.routes import health, auth, products, reviews, orders
-    for module in (health, auth, products, reviews, orders):
+    from app.routes import health, auth, products, reviews, orders, admin
+    for module in (health, auth, products, reviews, orders, admin):
         app.register_blueprint(module.bp)
     @app.before_request
     def prepare_request():

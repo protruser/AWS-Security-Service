@@ -32,7 +32,7 @@ app/
   config.py              # 개발/배포 설정 분리
   extensions.py          # SQLAlchemy
   models/__init__.py     # 6개 테이블의 ORM 모델 (order_items 포함)
-  routes/                # health, auth, products, reviews, orders
+  routes/                # health, auth, products, reviews, orders, admin
   services/security.py   # 인증 데코레이터
   logging_config.py      # stdout JSON 이벤트
 templates/               # Jinja2 화면
@@ -107,7 +107,7 @@ Named Volume `shop-db-data`는 `down` 후에도 유지됩니다. **`down -v`를 
 | shop | shop | user |
 | admin | admin | admin |
 
-DB에는 Werkzeug scrypt 해시만 저장됩니다. 관리자 역할은 저장 및 화면 표시로 구분하며 별도 관리자 기능은 현재 범위에 없습니다. seed를 재생성하려면 의존성 설치 후 `python db/generate_seed.py`를 실행합니다. 이 명령은 `db/schema.sql`, `db/seed.sql`만 갱신하며 실행 중 DB에는 접근하지 않습니다. 재생성 시 무작위 salt 때문에 해시가 변경됩니다.
+DB에는 Werkzeug scrypt 해시만 저장됩니다. 관리자 역할은 저장 및 화면 표시로 구분하며 관리자만 `/management/products`에서 상품 등록·정보 및 가격 수정·재고 변경을 할 수 있습니다. 상품 삭제는 제공하지 않습니다. seed를 재생성하려면 의존성 설치 후 `python db/generate_seed.py`를 실행합니다. 이 명령은 `db/schema.sql`, `db/seed.sql`만 갱신하며 실행 중 DB에는 접근하지 않습니다. 재생성 시 무작위 salt 때문에 해시가 변경됩니다.
 
 ### 기능 및 엔드포인트
 
@@ -122,10 +122,14 @@ DB에는 Werkzeug scrypt 해시만 저장됩니다. 관리자 역할은 저장 �
 | GET, POST /login | 세션 로그인, 성공 302 / 실패 401 |
 | POST /logout | 세션 삭제 |
 | GET, POST /products/&lt;id&gt;/reviews | 후기 조회 / 로그인 사용자 작성 (1~2,000자) |
-| POST /orders | product_id, quantity로 더미 주문 생성 (수량 1~100) |
-| GET /orders | 자신의 주문만 조회 |
+| POST /orders | product_id, quantity로 잔액 기반 모의 주문 생성 (수량 1~100) |
+| GET /orders | 자신의 주문번호·일시·상품·수량·결제금액·상태 조회 |
+| GET /management/products | 관리자 상품 목록 |
+| GET, POST /management/products/new | 관리자 상품 등록 |
+| GET, POST /management/products/&lt;id&gt;/edit | 관리자 상품 정보·가격·재고 수정 |
+| POST /management/products/&lt;id&gt;/stock | 관리자 재고 변경 |
 
-POST 요청은 각 폼의 기능 입력값만 전송합니다. 더미·없는 경로는 404입니다. 인증되지 않은 후기/주문 생성은 401, 잘못된 입력은 400, 없는 상품은 404, 재고 부족은 409입니다. 주문/후기 성공은 303 리다이렉트입니다. 주문 금액은 DB 가격으로 계산하며 MySQL 행 잠금과 하나의 트랜잭션으로 재고 차감 및 주문 생성을 처리합니다. 교육 모드의 검색과 후기 출력만 위 설명처럼 의도적으로 취약하게 동작합니다.
+POST 요청은 각 폼의 기능 입력값만 전송합니다. 더미·없는 경로는 404입니다. 인증되지 않은 후기/주문 생성은 401, 잘못된 입력은 400, 없는 상품은 404, 재고 또는 잔액 부족은 409입니다. 주문/후기 성공은 303 리다이렉트입니다. 주문 금액은 DB 가격으로 계산하며 사용자와 상품을 SELECT FOR UPDATE로 조회하고 하나의 트랜잭션으로 잔액·재고 차감 및 주문·주문항목 생성을 처리합니다. 실패 시 모두 롤백합니다. 관리자 URL은 비로그인 시 401, 일반 사용자에게는 403을 반환합니다. `/admin`은 기존 Directory Search 실습 경로로 유지합니다. 교육 모드의 검색과 후기 출력만 위 설명처럼 의도적으로 취약하게 동작합니다.
 
 ### 테스트 및 상태 확인
 
@@ -199,7 +203,7 @@ Terraform/인프라 담당자는 다음 규격을 사용합니다.
 
 ### 현재 미구현 및 다음 단계
 
-Terraform으로 구축된 기존 AWS 리소스를 사용하는 ECR/GitHub Actions/SSM 배포 파일만 포함합니다. AWS WAF와 CloudWatch 연동, 신규 Terraform/AWS 리소스, K3s 배포는 이 저장소에서 구현하지 않았습니다. 실제 결제/배송, 회원가입, 관리자 CRUD, 공격 실행 코드도 없습니다. 다음 작업은 별도 개선 버전에서 로그인 시도 제한, 검색 파라미터 바인딩, 후기 출력 인코딩 및 CSP 복원, MySQL 통합 테스트 보완을 권장합니다. 현재 취약 버전의 외부 공개 또는 실제 운영 배포는 범위에 포함하지 않습니다.
+Terraform으로 구축된 기존 AWS 리소스를 사용하는 ECR/GitHub Actions/SSM 배포 파일만 포함합니다. AWS WAF와 CloudWatch 연동, 신규 Terraform/AWS 리소스, K3s 배포는 이 저장소에서 구현하지 않았습니다. 실제 결제/배송 API, 회원가입, 상품 삭제, 공격 실행 코드는 없습니다. 다음 작업은 별도 개선 버전에서 로그인 시도 제한, 검색 파라미터 바인딩, 후기 출력 인코딩 및 CSP 복원, MySQL 통합 테스트 보완을 권장합니다. 현재 취약 버전의 외부 공개 또는 실제 운영 배포는 범위에 포함하지 않습니다.
 
 ### vuln_service 검증 결과 (2026-09-21)
 
@@ -223,3 +227,13 @@ Terraform으로 구축된 기존 AWS 리소스를 사용하는 ECR/GitHub Action
 - 컨테이너 UID 10001, 이미지 내부 `.env` 및 빌드 CA secret 부재 확인.
 - 검증 후 `docker compose -f docker-compose.local.yml down` 수행. Named Volume `aws-security-service_shop-db-data` 보존 확인. 최초 seed 외에 통합 검증 후기 1개, 주문 1개, 로그인 시도 3개가 남아 있습니다.
 - `.env`, `.local`, `.venv` Git 제외 및 `git diff --check` 통과. commit/push/merge는 수행하지 않았습니다.
+
+### CLOUD SHOP 잔액 및 상품 관리
+
+화면 브랜드는 CLOUD SHOP이며 로그인 사용자의 보유금액을 표시합니다. 잔액 기반 모의 주문과 관리자 상품 관리 기능을 제공합니다. 보안 실습 환경이라는 기존 사용 범위와 안전 안내는 그대로 적용됩니다.
+
+초기 잔액은 user1 500,000원, user2 300,000원, guest 100,000원, test 200,000원, shop 1,000,000원, admin 5,000,000원입니다. 그 외 새 User의 기본값은 1,000,000원이며 DB CHECK 제약조건으로 음수를 금지합니다. 초기 잔액은 기존 예시 주문에 대한 소급 차감 없이 지정한 값으로 설정합니다.
+
+기존 허가된 AWS 교육용 DB에는 앱 쓰기를 중지한 뒤 `db/migrations/001_user_balance.sql`을 **한 번만** 적용하고 새 앱을 시작해야 합니다. 이 파일은 balance 컬럼·기본값·CHECK 제약을 추가하고 위 계정 잔액을 초기화합니다. MySQL DDL은 암묵적으로 커밋되므로 전체 파일을 하나의 롤백 가능한 트랜잭션으로 취급하지 마세요. 이어서 `db/migrations/002_catalog_copy.sql`은 기존 초기 상품·후기 중 원래 문구가 그대로 남아 있는 항목만 자연스러운 문구로 바꿉니다. 기존 가격·재고·주문·비밀번호는 보존합니다. 실행 전에 대상 DB와 백업을 확인하세요. 이번 작업에서는 SQL 파일만 작성했으며 DB에 적용하지 않았습니다.
+
+`schema.sql`과 `seed.sql`은 신규 빈 DB 전용입니다. 기존 DB에는 재실행하지 않습니다. SQLite 단위 테스트는 MySQL의 실제 동시 요청 행 잠금을 검증하지 않습니다.

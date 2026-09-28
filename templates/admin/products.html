@@ -1,0 +1,11 @@
+{% extends 'base.html' %}{% block content %}
+<section class="hero"><p>CLOUD SHOP</p><h1>상품 관리</h1><p>상품 정보와 가격, 재고를 관리하세요.</p></section>
+<p><a href="{{ url_for('admin.new') }}">상품 등록 →</a></p>
+<div class="grid">{% for product in products %}<article class="card">
+<span class="tag">상품 ID {{ product.id }}</span><h2>{{ product.name }}</h2>
+<strong>{{ '{:,.0f}'.format(product.price) }}원</strong><p>재고 {{ product.stock }}개</p>
+<p><a href="{{ url_for('admin.edit', product_id=product.id) }}">상품 정보 및 가격 수정</a></p>
+<form method="post" action="{{ url_for('admin.stock', product_id=product.id) }}">
+<label for="stock-{{ product.id }}">변경할 재고 수량</label><input id="stock-{{ product.id }}" name="stock" type="number" min="0" max="2147483647" value="{{ product.stock }}" required><button>재고 변경</button></form>
+</article>{% else %}<p>등록된 상품이 없습니다.</p>{% endfor %}</div>
+{% endblock %}

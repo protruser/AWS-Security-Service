@@ -1,0 +1,10 @@
+{% extends 'base.html' %}{% block content %}
+<section class="panel narrow"><h1>{{ '상품 수정' if product else '상품 등록' }}</h1>
+<form method="post">
+<label for="name">상품명</label><input id="name" name="name" maxlength="120" value="{{ product.name if product else '' }}" required>
+<label for="description">설명</label><textarea id="description" name="description" rows="5" required>{{ product.description if product else '' }}</textarea>
+<label for="price">가격 (원)</label><input id="price" name="price" type="number" min="0" max="99999999.99" step="0.01" value="{{ product.price if product else '' }}" required>
+<label for="stock">재고</label><input id="stock" name="stock" type="number" min="0" max="2147483647" value="{{ product.stock if product else 0 }}" required>
+<button>{{ '변경 저장' if product else '상품 등록' }}</button>
+</form><p><a href="{{ url_for('admin.products') }}">상품 목록으로</a></p></section>
+{% endblock %}

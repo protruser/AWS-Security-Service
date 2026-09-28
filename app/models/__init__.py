@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 from app.extensions import db
 
 
@@ -12,8 +13,10 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default="user")
+    balance = db.Column(db.Numeric(12, 2), nullable=False, default=Decimal("1000000.00"), server_default="1000000.00")
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
-    __table_args__ = (db.CheckConstraint("role IN ('user', 'admin')", name="ck_user_role"),)
+    __table_args__ = (db.CheckConstraint("balance >= 0", name="ck_user_balance"),
+                      db.CheckConstraint("role IN ('user', 'admin')", name="ck_user_role"),)
 
 
 class Product(db.Model):

@@ -1,6 +1,6 @@
 from flask import Blueprint, abort, g, redirect, render_template, request, url_for
 from app.extensions import db
-from app.models import Order, OrderItem, Product
+from app.models import Order, OrderItem, Product, User
 from app.services.security import login_required
 from app.logging_config import event
 
@@ -24,7 +24,10 @@ def create():
         abort(400)
     if product_id <= 0 or not 1 <= quantity <= 100:
         abort(400)
-    product = db.session.scalar(db.select(Product).where(Product.id == product_id).with_for_update())
+    user = db.session.scalar(db.select(User).where(User.id == g.user.id)
+                             .with_for_update().execution_options(populate_existing=True))
+    product = db.session.scalar(db.select(Product).where(Product.id == product_id)
+                                .with_for_update().execution_options(populate_existing=True))
     if product is None:
         db.session.rollback()
         abort(404)
@@ -32,8 +35,14 @@ def create():
         db.session.rollback()
         event("INPUT_VALIDATION_FAILED", 409)
         return render_template("error.html", code=409), 409
+    total = product.price * quantity
+    if user.balance < total:
+        db.session.rollback()
+        event("INPUT_VALIDATION_FAILED", 409)
+        return render_template("error.html", code=409, message="보유금액이 부족합니다."), 409
     product.stock -= quantity
-    order = Order(user_id=g.user.id, total_price=product.price * quantity)
+    user.balance -= total
+    order = Order(user_id=g.user.id, total_price=total)
     db.session.add(order)
     db.session.flush()
     db.session.add(OrderItem(order_id=order.id, product_id=product.id, quantity=quantity, price=product.price))
