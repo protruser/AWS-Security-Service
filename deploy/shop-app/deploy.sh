@@ -65,25 +65,7 @@ aws secretsmanager get-secret-value \
   --secret-id "$SHOP_DB_SECRET_ID" \
   --query SecretString \
   --output text |
-  jq -er '
-    if type != "object" then
-      error("secret must be a JSON object")
-    else
-      {
-        DB_HOST: (.host // ""),
-        DB_PORT: ((.port // "") | tostring),
-        DB_NAME: (.database // ""),
-        DB_USER: (.username // ""),
-        DB_PASSWORD: (.password // "")
-      }
-    end
-    | if all(.[]; type == "string" and length > 0 and (test("[\r\n]") | not))
-      then .
-      else error("required secret values must be non-empty single-line strings")
-      end
-    | to_entries[]
-    | "\(.key)=\(.value)"
-  ' >"$temporary_env"
+
 
 printf 'SECRET_KEY=%s\n' "$secret_key" >>"$temporary_env"
 printf '%s\n' 'FLASK_ENV=lab' 'VULNERABLE_LAB=1' >>"$temporary_env"
