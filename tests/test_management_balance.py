@@ -126,6 +126,6 @@ def test_customer_copy(client, app):
         response = client.get(path)
         assert response.status_code == 200
         page = response.get_data(as_text=True)
-        assert "CLOUD SHOP" in page
+        assert "Way Better" in page
         for word in ["DEMO", "더미", "교육용", "실습"]:
             assert word not in page

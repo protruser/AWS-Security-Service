@@ -94,8 +94,8 @@ def test_unknown_path(client, events):
 
 
 def test_search_and_detection(client, events):
-    assert b"Demo Keyboard" in client.get("/search?q=Keyboard").data
-    assert b"Demo Keyboard" not in client.get("/search?q=%25").data
+    assert "저소음 무선 키보드".encode("utf-8") in client.get("/search?q=키보드").data
+    assert "저소음 무선 키보드".encode("utf-8") not in client.get("/search?q=%25").data
     # A standalone keyword, not an SQL statement or executable payload.
     assert client.get("/search?q=select").status_code == 200
     assert any(row["event_type"] == "SUSPICIOUS_SEARCH_INPUT" for row in events())
@@ -104,7 +104,7 @@ def test_search_and_detection(client, events):
 def test_query_error_is_redacted(client, events):
     with patch("app.routes.products.vulnerable_search", side_effect=OperationalError(
             "private-sql-sentinel", {}, Exception("private-db-sentinel"))):
-        response = client.get("/search?q=Keyboard")
+        response = client.get("/search?q=키보드")
     assert response.status_code == 503
     assert events()[-1]["event_type"] == "DATABASE_QUERY_ERROR"
     combined = response.get_data(as_text=True) + json.dumps(events())

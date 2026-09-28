@@ -32,12 +32,12 @@ def test_not_found(client):
 
 
 def test_products_and_search(client):
-    for path in ["/", "/products", "/products/1", "/search?q=Keyboard"]:
+    for path in ["/", "/products", "/products/1", "/search?q=키보드"]:
         response = client.get(path)
         assert response.status_code == 200
-        assert b"Demo Keyboard" in response.data
+        assert "저소음 무선 키보드".encode("utf-8") in response.data
     for query in ["absent", "' OR 1=1 --", "%"]:
-        assert b"Demo Keyboard" not in client.get("/search", query_string={"q": query}).data
+        assert "저소음 무선 키보드".encode("utf-8") not in client.get("/search", query_string={"q": query}).data
     assert client.get("/search", query_string={"q": "a" * 121}).status_code == 400
 
 
@@ -89,14 +89,14 @@ def test_orders_stock_and_ownership(client, app):
     assert client.post("/orders", data={"product_id": 999, "quantity": 1}).status_code == 404
     assert client.post("/orders", data={"product_id": 1, "quantity": 6}).status_code == 409
     assert client.post("/orders", data={"product_id": 1, "quantity": 2}).status_code == 303
-    assert b"Demo Keyboard" in client.get("/orders").data
+    assert "저소음 무선 키보드".encode("utf-8") in client.get("/orders").data
     with app.app_context():
         assert db.session.get(Product, 1).stock == 3
         order = db.session.scalar(db.select(Order))
         assert order.total_price == 24000
         assert order.items[0].quantity == 2
     login(client, "user2", "password")
-    assert b"Demo Keyboard" not in client.get("/orders").data
+    assert "저소음 무선 키보드".encode("utf-8") not in client.get("/orders").data
 
 
 def test_json_logs_exclude_secrets(client, app):

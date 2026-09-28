@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="ko">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CLOUD SHOP</title><link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Way Better | 조금 더 나은 삶을 위한 선택</title><link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"></head>
 <body>
-<header><nav><a class="brand" href="{{ url_for('products.index') }}">CLOUD SHOP</a><a href="{{ url_for('products.index') }}">상품</a>
+<header><nav><a class="brand" href="{{ url_for('products.index') }}">Way Better</a><a href="{{ url_for('products.index') }}">상품</a>
 {% if g.user %}<a href="{{ url_for('orders.index') }}">내 주문</a>{% if g.user.role == "admin" %}<a href="{{ url_for('admin.products') }}">상품 관리</a>{% endif %}<span>보유금액 {{ '{:,.0f}'.format(g.user.balance) }}원</span><span>{{ g.user.username }} · {{ '관리자' if g.user.role == 'admin' else '일반 사용자' }}</span><form action="{{ url_for('auth.logout') }}" method="post"><button>로그아웃</button></form>
 {% else %}<a href="{{ url_for('auth.login') }}">로그인</a>{% endif %}</nav></header>
 <main>{% block content %}{% endblock %}</main>
-<footer>CLOUD SHOP · 일상을 채우는 좋은 선택</footer>
+<footer><strong>Way Better</strong><span>조금 더 나은 삶을 위한 선택</span></footer>
 </body></html>

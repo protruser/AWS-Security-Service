@@ -14,7 +14,7 @@ def app():
         db.session.add_all([
             User(username="user1", password_hash=generate_password_hash("1234"), role="user"),
             User(username="user2", password_hash=generate_password_hash("password"), role="user"),
-            Product(name="Demo Keyboard", description="Dummy product", price=12000, stock=5),
+            Product(name="저소음 무선 키보드", description="편안한 타이핑을 위한 무선 키보드입니다.", price=12000, stock=5),
         ])
         db.session.commit()
     yield app

@@ -1,5 +1,5 @@
 {% extends 'base.html' %}{% block content %}
-<section class="hero"><p>CLOUD SHOP</p><h1>상품 관리</h1><p>상품 정보와 가격, 재고를 관리하세요.</p></section>
+<section class="hero"><p>Way Better</p><h1>상품 관리</h1><p>상품 정보와 가격, 재고를 관리하세요.</p></section>
 <p><a href="{{ url_for('admin.new') }}">상품 등록 →</a></p>
 <div class="grid">{% for product in products %}<article class="card">
 <span class="tag">상품 ID {{ product.id }}</span><h2>{{ product.name }}</h2>
