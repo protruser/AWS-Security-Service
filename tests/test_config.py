@@ -23,7 +23,7 @@ def test_lab_environment(monkeypatch):
     config_class, values = environment_config()
 
     assert config_class is LabConfig
-    assert config_class.SESSION_COOKIE_SECURE is True
+    assert config_class.SESSION_COOKIE_SECURE is False
     assert config_class.TRUST_PROXY_HEADERS is True
     assert values["VULNERABLE_LAB"] is True
 
