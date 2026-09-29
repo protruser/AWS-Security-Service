@@ -1,12 +1,5 @@
-import secrets
 from functools import wraps
-from flask import abort, g, session
-
-
-def csrf_token():
-    if "csrf_token" not in session:
-        session["csrf_token"] = secrets.token_urlsafe(32)
-    return session["csrf_token"]
+from flask import abort, g
 
 
 def login_required(view):
@@ -14,5 +7,15 @@ def login_required(view):
     def wrapped(*args, **kwargs):
         if g.user is None:
             abort(401)
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def admin_required(view):
+    @login_required
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if g.user.role != "admin":
+            abort(403)
         return view(*args, **kwargs)
     return wrapped

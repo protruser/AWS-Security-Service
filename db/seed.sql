@@ -1,18 +1,25 @@
--- FICTIONAL TRAINING DATA ONLY. Public demo passwords are documented in README.
+-- FICTIONAL TRAINING DATA ONLY. Intentionally weak public passwords; never use with real data.
 SET NAMES utf8mb4;
 START TRANSACTION;
-INSERT INTO users (id, username, password_hash, role, created_at) VALUES (1, 'demo_user1', 'scrypt:32768:8:1$w3tEBPhbYxJ3hIHL$2faba482ecf7e4a54f621d8150404af8a2453ba4aedb0f1d8fbe37d68d3a03e54ba4b554db88ce9f9b1dafee46c20f926ac0bd1672498108da0e057b6b64e3d8', 'user', UTC_TIMESTAMP());
-INSERT INTO users (id, username, password_hash, role, created_at) VALUES (2, 'demo_user2', 'scrypt:32768:8:1$vo3lT45LlsTcWN8v$a1be3d9e3e93bbf64173a8330288b81fb8f430dabeb14624ed5b62d45fd60ae9db4c042376419df60c97d74e05ed1af2d95dafd762ff3b2a1c478226025a1e36', 'user', UTC_TIMESTAMP());
-INSERT INTO users (id, username, password_hash, role, created_at) VALUES (3, 'demo_admin', 'scrypt:32768:8:1$nX85KuBOasN2BMxH$ce22cbe158ea59c947ed76b6ef5d648475de9812a617f86f33e5fc0e8c79c0f7d7d2e3860334b77de7f2f0d11fedb4abbfd47b04a168886ee2307de4da92d6bd', 'admin', UTC_TIMESTAMP());
-INSERT INTO products (id, name, description, price, stock, created_at) VALUES (1, '데모 키보드', '교육용 가상 상품입니다. 실제 판매 및 배송하지 않습니다.', 45000, 19, UTC_TIMESTAMP());
-INSERT INTO products (id, name, description, price, stock, created_at) VALUES (2, '데모 마우스', '교육용 가상 상품입니다. 실제 판매 및 배송하지 않습니다.', 18000, 20, UTC_TIMESTAMP());
-INSERT INTO products (id, name, description, price, stock, created_at) VALUES (3, '데모 노트', '교육용 가상 상품입니다. 실제 판매 및 배송하지 않습니다.', 3500, 20, UTC_TIMESTAMP());
-INSERT INTO products (id, name, description, price, stock, created_at) VALUES (4, '데모 머그컵', '교육용 가상 상품입니다. 실제 판매 및 배송하지 않습니다.', 9000, 20, UTC_TIMESTAMP());
-INSERT INTO products (id, name, description, price, stock, created_at) VALUES (5, '데모 에코백', '교육용 가상 상품입니다. 실제 판매 및 배송하지 않습니다.', 12000, 20, UTC_TIMESTAMP());
-INSERT INTO products (id, name, description, price, stock, created_at) VALUES (6, '데모 텀블러', '교육용 가상 상품입니다. 실제 판매 및 배송하지 않습니다.', 22000, 20, UTC_TIMESTAMP());
-INSERT INTO products (id, name, description, price, stock, created_at) VALUES (7, '데모 스탠드', '교육용 가상 상품입니다. 실제 판매 및 배송하지 않습니다.', 32000, 20, UTC_TIMESTAMP());
-INSERT INTO products (id, name, description, price, stock, created_at) VALUES (8, '데모 파우치', '교육용 가상 상품입니다. 실제 판매 및 배송하지 않습니다.', 7500, 20, UTC_TIMESTAMP());
+INSERT INTO users (id, username, password_hash, role, balance, created_at) VALUES (1, 'user1', 'scrypt:32768:8:1$bk8dyAZD3EKxJ1fi$6760ce420f78ef1beffa516ee70f9f6113c08b6960bc7ab092c8200d19e7cae0f446210a2d3c4ac01b19178b1dd41ee699fdff66efb0427841c41f84a2133960', 'user', 500000, UTC_TIMESTAMP());
+INSERT INTO users (id, username, password_hash, role, balance, created_at) VALUES (2, 'user2', 'scrypt:32768:8:1$JRyazb5xypQb1EFO$91d2389cc3acc37698697d904be440381b0ca4db275fbe49fdd8b73d23604f9e2e35451e7fc9fb440ba1ad8d0b354469b890b93b62fc40817f59247a826e5bc3', 'user', 300000, UTC_TIMESTAMP());
+INSERT INTO users (id, username, password_hash, role, balance, created_at) VALUES (3, 'guest', 'scrypt:32768:8:1$RlQMEP1nIcYxCCA4$13338815d85bef1cd16a7258654e5d65d0c56b246d91aa391c8976b7666eb0e1540c8ccc26ac2c956246a60e0639859e32ce980b1b11b3672cb10c7be7a3aedf', 'user', 100000, UTC_TIMESTAMP());
+INSERT INTO users (id, username, password_hash, role, balance, created_at) VALUES (4, 'test', 'scrypt:32768:8:1$8MyLtnkhDcfC2lFC$94b0682fc98cd54075dfe109e5b6c68c8dfff6d5d9743082b03cdcd5987b6b1423a06a66dc1187610fdfec9831b48a7e219c740c6906acf08719349efc15283d', 'user', 200000, UTC_TIMESTAMP());
+INSERT INTO users (id, username, password_hash, role, balance, created_at) VALUES (5, 'shop', 'scrypt:32768:8:1$gShYJa25aw5c5iN1$c994e598a7696d0a689ef7b077965e698c328e5a7d2ec42e6ea8d1efb32dc49a29c9dea744d8297010ba31790da5a740ab3ea14e4c1616303a26865e50c86a70', 'user', 1000000, UTC_TIMESTAMP());
+INSERT INTO users (id, username, password_hash, role, balance, created_at) VALUES (6, 'admin', 'scrypt:32768:8:1$LksfwUJ75CvE8YHd$bd2e793a0b7c19081e61bdcc9a879f49fb69258cd0f32ec93a460ec81f569c2b3bd424a327593d8a2fc6a9ce36231896de9919d0802252a08e9a5b341009a5fd', 'admin', 5000000, UTC_TIMESTAMP());
+INSERT INTO products (id, name, description, price, stock, created_at) VALUES (1, '저소음 무선 키보드', '편안한 타건감과 조용한 사용 환경을 제공하는 슬림형 무선 키보드입니다.', 45000, 30, UTC_TIMESTAMP());
+INSERT INTO products (id, name, description, price, stock, created_at) VALUES (2, '인체공학 무선 마우스', '손목 부담을 줄이고 안정적인 그립감을 제공하는 무선 마우스입니다.', 39000, 25, UTC_TIMESTAMP());
+INSERT INTO products (id, name, description, price, stock, created_at) VALUES (3, 'USB-C 멀티 허브', 'HDMI, USB, 메모리 카드 연결을 하나로 지원하는 휴대용 멀티 허브입니다.', 59000, 20, UTC_TIMESTAMP());
+INSERT INTO products (id, name, description, price, stock, created_at) VALUES (4, '27인치 QHD 모니터', '선명한 QHD 화면과 넓은 작업 공간을 제공하는 사무용 모니터입니다.', 289000, 12, UTC_TIMESTAMP());
+INSERT INTO products (id, name, description, price, stock, created_at) VALUES (5, '노이즈 캔슬링 헤드폰', '외부 소음을 줄이고 풍부한 사운드를 제공하는 무선 헤드폰입니다.', 129000, 18, UTC_TIMESTAMP());
+INSERT INTO products (id, name, description, price, stock, created_at) VALUES (6, '알루미늄 노트북 거치대', '노트북 화면 높이를 편안하게 조절할 수 있는 접이식 거치대입니다.', 32000, 35, UTC_TIMESTAMP());
+INSERT INTO products (id, name, description, price, stock, created_at) VALUES (7, '와이드 데스크 매트', '키보드와 마우스를 여유 있게 배치할 수 있는 생활 방수 데스크 매트입니다.', 19000, 40, UTC_TIMESTAMP());
+INSERT INTO products (id, name, description, price, stock, created_at) VALUES (8, '무선 LED 데스크 스탠드', '밝기와 색온도를 조절할 수 있는 충전식 LED 스탠드입니다.', 42000, 22, UTC_TIMESTAMP());
 INSERT INTO orders (id, user_id, status, total_price, created_at) VALUES (1, 1, 'created', 45000, UTC_TIMESTAMP());
 INSERT INTO order_items (id, order_id, product_id, quantity, price) VALUES (1, 1, 1, 1, 45000);
-INSERT INTO reviews (user_id, product_id, content, created_at) VALUES (1, 1, '교육용 테스트 후기입니다.', UTC_TIMESTAMP()), (2, 2, '더미 상품의 후기 표시를 확인합니다.', UTC_TIMESTAMP());
+INSERT INTO reviews (user_id, product_id, content, created_at) VALUES (1, 1, '키감이 부드럽고 소음이 적어서 사무실에서 사용하기 좋습니다.', UTC_TIMESTAMP());
+INSERT INTO reviews (user_id, product_id, content, created_at) VALUES (2, 2, '손에 편하게 잡히고 오래 사용해도 손목 부담이 적어요.', UTC_TIMESTAMP());
+INSERT INTO reviews (user_id, product_id, content, created_at) VALUES (3, 3, '노트북에 필요한 포트를 한 번에 연결할 수 있어서 편리합니다.', UTC_TIMESTAMP());
+INSERT INTO reviews (user_id, product_id, content, created_at) VALUES (4, 6, '높이 조절이 간단하고 책상이 한결 깔끔해졌습니다.', UTC_TIMESTAMP());
+INSERT INTO reviews (user_id, product_id, content, created_at) VALUES (5, 7, '크기가 넉넉하고 마우스 움직임도 부드럽습니다.', UTC_TIMESTAMP());
 COMMIT;

@@ -19,6 +19,8 @@ services:
   shop-app:
     build: .
     environment:
+      # vuln_service only; never publish this training app to the Internet.
+      VULNERABLE_LAB: "1"
       FLASK_ENV: ${FLASK_ENV:-development}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       DB_HOST: shop-db

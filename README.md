@@ -3,18 +3,37 @@ AWS 기반 서비스 보안 구축 프로젝트(서비스)
 
 ## 교육용 Flask 쇼핑몰
 
-AWS 보안 모니터링 프로젝트의 대상 서비스 기본 버전입니다. 현재 범위는 로컬 Docker Compose의 Flask + MySQL 실행까지입니다. 모든 계정, 상품, 후기, 주문은 가상 데이터이며 실제 개인정보, 결제, 배송은 사용하지 않습니다. 의도적인 SQL Injection/XSS 취약점이나 공격 실행 코드는 포함하지 않습니다. 공개된 더미 계정을 사용하는 학습 환경이므로 인터넷에 그대로 공개하지 마세요.
+현재 `vuln_service` 브랜치는 로컬 및 허가된 AWS 교육용 실습 환경을 위한 취약 버전입니다. **외부 인터넷에 공개하면 안 되며, 실제 운영 환경이나 실제 데이터에는 배포하지 않습니다.** 현재 애플리케이션 범위는 Flask + MySQL이며 모든 계정, 상품, 후기, 주문은 더미 데이터입니다. 의도적인 SQL Injection/XSS 로직을 포함하지만 공격 실행 스크립트, payload 모음, 실제 개인정보·인증정보는 추가하지 않습니다. AWS WAF와 CloudWatch 연동은 아직 구현하지 않았습니다.
+
+### 로컬 교육 시나리오
+
+| scenario_id | 대상 기능 | 동작 |
+| --- | --- | --- |
+| BRUTE_FORCE | POST /login | 실패 저장, 300초 내 같은 IP 또는 계정의 실패가 5회 이상이면 탐지. 잠금·횟수 제한·애플리케이션 Rate Limit 없음 |
+| DIRECTORY_SEARCH | /admin, /backup, /old, /config | 실제 파일·관리 기능 없이 404와 의심 경로 이벤트. 다른 없는 URL은 INVALID_PATH |
+| SQL_INJECTION | GET /search?q=... | 교육 모드에서 입력을 SQL 문자열에 결합. 정상 부분 검색 유지, 상세 오류 비노출 |
+| XSS | POST/GET /products/&lt;id&gt;/reviews | 교육 모드에서 저장된 후기의 HTML을 인코딩 없이 출력 |
+
+`app/services/lab.py`에 탐지와 취약 검색·후기 선택을 분리했습니다. `BRUTE_FORCE_THRESHOLD`, `BRUTE_FORCE_WINDOW_SECONDS`는 Flask 설정으로 변경할 수 있습니다. 기준 이상인 각 실패마다 의심 이벤트를 남기지만 요청을 차단하지 않습니다. 로그인 입력 검증 실패도 login_attempts에 저장하며, 파싱 불가능한 본문은 빈 계정명으로 기록합니다. DB 장애 중에는 저장을 보장할 수 없고 일반 오류 응답을 반환합니다.
+
+`VULNERABLE_LAB=1`은 `vuln_service` 전용이며 로컬 Compose에서 명시적으로 활성화합니다. 기본 Python 설정은 기존 안전 검색/후기를 보존하여 회귀 테스트에 사용합니다. 이는 전체 보안 개선 모드가 아니며 로그인 제한은 여전히 없습니다. production 환경에서는 교육 모드 시작을 거부합니다. 런타임에는 Git이 없으므로 브랜치명을 자동 검사하지 않습니다.
+
+취약 후기 출력은 `templates/lab/review_content.html`에 한정합니다. 해당 GET 페이지에서만 CSP의 inline script를 허용하며 외부 리소스·연결은 제한합니다. 이 CSP는 취약 후기의 안전성을 보장하지 않습니다. 다른 화면은 기존 자동 인코딩과 CSP를 유지합니다. 개선 시 안전 partial과 엄격한 CSP로 교체하세요.
+
+직접 실행하는 Flask는 `127.0.0.1`에 바인딩합니다. Docker 내부 Gunicorn은 포트 전달을 위해 `0.0.0.0:5000`을 사용하되 호스트 공개는 `127.0.0.1:5000`뿐입니다. MySQL 3306은 호스트에 공개하지 않으며 기존 쇼핑몰 DB 계정·권한을 유지합니다. DB root나 다른 DB 접근 권한을 추가하지 않습니다. 실제 데이터는 이 DB에 넣지 마세요.
+
+자세한 구현 메모는 [docs/scenarios.md](docs/scenarios.md), 기존 시나리오 원문은 [docs/scenario.md](docs/scenario.md)를 참고하세요. 애플리케이션은 로컬 또는 사전에 허가되고 격리된 AWS 교육용 실습 환경에서만 사용합니다.
 
 ### 구조
 
 ```text
 app/
-  __init__.py             # Application Factory, 요청 ID, CSRF, 오류 처리
+  __init__.py             # Application Factory, 요청 ID, 오류 처리
   config.py              # 개발/배포 설정 분리
   extensions.py          # SQLAlchemy
   models/__init__.py     # 6개 테이블의 ORM 모델 (order_items 포함)
-  routes/                # health, auth, products, reviews, orders
-  services/security.py   # 인증 데코레이터와 CSRF 토큰
+  routes/                # health, auth, products, reviews, orders, admin
+  services/security.py   # 인증 데코레이터
   logging_config.py      # stdout JSON 이벤트
 templates/               # Jinja2 화면
 static/css/              # 반응형 CSS; JavaScript 없이 동작
@@ -24,6 +43,8 @@ db/generate_seed.py      # ORM 기준 스키마/더미 데이터 재생성 도�
 tests/                   # 격리된 SQLite 테스트
 Dockerfile
 docker-compose.local.yml
+.github/workflows/deploy-shop-app.yml  # OIDC, ECR, SSM 기반 교육 환경 배포
+deploy/shop-app/deploy.sh              # EC2 컨테이너 교체, 상태 확인, 롤백
 requirements.txt
 requirements-dev.txt     # pytest는 개발 환경에만 설치
 .env.example
@@ -71,17 +92,22 @@ docker compose -f docker-compose.local.yml up -d --wait
 docker compose -f docker-compose.local.yml up -d --build --wait
 ```
 
-Named Volume `shop-db-data`는 `down` 후에도 유지됩니다. **`down -v`를 사용하지 마세요.** 스키마와 seed SQL은 빈 볼륨의 최초 초기화 때만 적용됩니다. 기존 볼륨에 SQL 변경이나 `.env` DB 비밀번호 변경이 자동 반영되지는 않습니다. 스키마 변경은 추후 마이그레이션으로 관리해야 합니다. 초기 데이터는 일반 사용자 2명, 관리자 1명, 상품 8개, 후기 2개, 주문 1개입니다.
+Named Volume `shop-db-data`는 `down` 후에도 유지됩니다. **`down -v`를 사용하지 마세요.** 스키마와 seed SQL은 빈 볼륨의 최초 초기화 때만 적용됩니다. 기존 볼륨에 SQL 변경이나 `.env` DB 비밀번호 변경이 자동 반영되지는 않습니다. 스키마 변경은 추후 마이그레이션으로 관리해야 합니다. 초기 데이터는 일반 사용자 5명, 관리자 1명, 상품 8개, 후기 2개, 주문 1개입니다.
 
-### 더미 사용자 (공개된 교육용 비밀번호)
+### 더미 사용자 (의도적으로 취약한 공개 교육용 비밀번호)
+
+다음 계정은 무차별 대입 공격 탐지 실습을 위해 의도적으로 단순하게 구성한 가상 계정입니다. 격리된 허가 교육 환경에서만 사용하고, 실제 운영 환경·실제 데이터·다른 서비스에서는 이 아이디나 비밀번호를 사용하지 마세요.
 
 | 사용자 이름 | 교육용 비밀번호 | 역할 |
 | --- | --- | --- |
-| demo_user1 | DemoUser1!2026 | user |
-| demo_user2 | DemoUser2!2026 | user |
-| demo_admin | DemoAdmin!2026 | admin |
+| user1 | 1234 | user |
+| user2 | password | user |
+| guest | guest | user |
+| test | test | user |
+| shop | shop | user |
+| admin | admin | admin |
 
-DB에는 Werkzeug scrypt 해시만 저장됩니다. 관리자 역할은 저장 및 화면 표시로 구분하며 별도 관리자 기능은 현재 범위에 없습니다. seed를 재생성하려면 의존성 설치 후 `python db/generate_seed.py`를 실행합니다. 이 명령은 `db/schema.sql`, `db/seed.sql`만 갱신하며 실행 중 DB에는 접근하지 않습니다. 재생성 시 무작위 salt 때문에 해시가 변경됩니다.
+DB에는 Werkzeug scrypt 해시만 저장됩니다. 관리자 역할은 저장 및 화면 표시로 구분하며 관리자만 `/management/products`에서 상품 등록·정보 및 가격 수정·재고 변경을 할 수 있습니다. 상품 삭제는 제공하지 않습니다. seed를 재생성하려면 의존성 설치 후 `python db/generate_seed.py`를 실행합니다. 이 명령은 `db/schema.sql`, `db/seed.sql`만 갱신하며 실행 중 DB에는 접근하지 않습니다. 재생성 시 무작위 salt 때문에 해시가 변경됩니다.
 
 ### 기능 및 엔드포인트
 
@@ -96,10 +122,14 @@ DB에는 Werkzeug scrypt 해시만 저장됩니다. 관리자 역할은 저장 �
 | GET, POST /login | 세션 로그인, 성공 302 / 실패 401 |
 | POST /logout | 세션 삭제 |
 | GET, POST /products/&lt;id&gt;/reviews | 후기 조회 / 로그인 사용자 작성 (1~2,000자) |
-| POST /orders | product_id, quantity로 더미 주문 생성 (수량 1~100) |
-| GET /orders | 자신의 주문만 조회 |
+| POST /orders | product_id, quantity로 잔액 기반 모의 주문 생성 (수량 1~100) |
+| GET /orders | 자신의 주문번호·일시·상품·수량·결제금액·상태 조회 |
+| GET /management/products | 관리자 상품 목록 |
+| GET, POST /management/products/new | 관리자 상품 등록 |
+| GET, POST /management/products/&lt;id&gt;/edit | 관리자 상품 정보·가격·재고 수정 |
+| POST /management/products/&lt;id&gt;/stock | 관리자 재고 변경 |
 
-모든 POST는 화면의 hidden 필드 `csrf_token`과 해당 세션 쿠키가 필요합니다. 인증되지 않은 후기/주문 생성은 401, 잘못된 입력/CSRF는 400, 없는 상품은 404, 재고 부족은 409입니다. 주문/후기 성공은 303 리다이렉트입니다. 주문 금액은 DB 가격으로 계산하며 MySQL 행 잠금과 하나의 트랜잭션으로 재고 차감 및 주문 생성을 처리합니다. ORM 파라미터 바인딩, 검색 와일드카드 이스케이프, Jinja2 자동 출력 인코딩을 사용합니다.
+POST 요청은 각 폼의 기능 입력값만 전송합니다. 더미·없는 경로는 404입니다. 인증되지 않은 후기/주문 생성은 401, 잘못된 입력은 400, 없는 상품은 404, 재고 또는 잔액 부족은 409입니다. 주문/후기 성공은 303 리다이렉트입니다. 주문 금액은 DB 가격으로 계산하며 사용자와 상품을 SELECT FOR UPDATE로 조회하고 하나의 트랜잭션으로 잔액·재고 차감 및 주문·주문항목 생성을 처리합니다. 실패 시 모두 롤백합니다. 관리자 URL은 비로그인 시 401, 일반 사용자에게는 403을 반환합니다. `/admin`은 기존 Directory Search 실습 경로로 유지합니다. 교육 모드의 검색과 후기 출력만 위 설명처럼 의도적으로 취약하게 동작합니다.
 
 ### 테스트 및 상태 확인
 
@@ -116,7 +146,7 @@ python tests/smoke_local.py
 
 Bash에서는 `.venv/bin/python`을 사용합니다. 가상환경을 활성화했다면 `python -m pytest`로도 실행할 수 있습니다. 테스트는 매번 별도의 메모리 SQLite DB를 만들며 `.env`나 운영 DB가 필요하지 않습니다. MySQL 고유 잠금/초기화 동작은 Compose 실행으로 별도 확인해야 합니다.
 
-통합 검증 스크립트는 더미 후기 1개와 주문 1개를 생성하고 DB에 보존합니다. 반복 실행하면 키보드 재고가 차감됩니다. `SMOKE_BASE_URL`로 대상 주소를 바꿀 수 있습니다.
+통합 검증 스크립트는 더미 후기 1개와 주문 1개를 생성하고 DB에 보존합니다. 반복 실행하면 키보드 재고가 차감됩니다. `SMOKE_BASE_URL`은 허가된 로컬 주소에만 지정하세요. 기본 검사는 교육 모드의 후기 출력을 확인하며, 안전 출력 설정을 비교할 때는 `SMOKE_VULNERABLE_LAB=0`으로 실행합니다.
 
 정상 `/health` 응답은 `{"status":"healthy","service":"shop-app"}`, `/ready`는 `{"status":"ready","database":"connected"}`입니다. 매 응답의 `X-Request-ID`로 로그를 연결할 수 있습니다.
 
@@ -131,9 +161,33 @@ docker compose -f docker-compose.local.yml up -d --wait
 
 다른 인증서 중계 환경에서는 신뢰할 수 있는 CA PEM 파일을 같은 BuildKit secret으로 제공해야 합니다. `.local` 폴더는 Git과 이미지에서 제외되므로 다른 PC로 자동 전달되지 않습니다.
 
+### 허가된 AWS 교육 환경 배포
+
+`.github/workflows/deploy-shop-app.yml`은 `vuln_service` 브랜치 push 또는 수동 `workflow_dispatch`에서 실행됩니다. `production` GitHub Environment를 사용하지만, 이 이름은 GitHub의 승인·변수 경계 이름일 뿐 애플리케이션을 실제 운영 용도로 허용한다는 뜻이 아닙니다. 이 취약 이미지는 격리되고 명시적으로 허가된 교육 환경에만 배포하며 실제 운영 환경과 실제 데이터에는 사용하지 않습니다. Environment protection rule에 필수 검토자를 설정하는 것을 권장합니다.
+
+워크플로의 순서는 Python 3.12 설정, `requirements-dev.txt` 설치, 전체 pytest 실행, GitHub OIDC 역할 인증, ECR 로그인, commit SHA 태그 이미지 build/push, SSM SendCommand 배포입니다. 테스트가 실패하면 AWS 인증 전에 중단됩니다. ECR이 immutable tag이므로 이미지는 `${SHOP_APP_ECR_URI}:${GITHUB_SHA}`로만 게시합니다. 고정 AWS Access Key나 SSH는 사용하지 않습니다.
+
+GitHub 저장소 또는 `production` Environment에 다음 **Variables**를 등록해야 합니다. 실제 비밀번호나 SecretString은 GitHub Variables에 넣지 않습니다.
+
+| GitHub Variable | 의미 |
+| --- | --- |
+| `AWS_REGION` | ECR, SSM, Secrets Manager 리전 |
+| `AWS_ROLE_ARN` | GitHub OIDC가 AssumeRole할 배포 역할 ARN |
+| `SHOP_APP_ECR_URI` | 태그를 제외한 ECR 저장소 URI (`account.dkr.ecr.region.amazonaws.com/repository`) |
+| `SHOP_APP_INSTANCE_ID` | SSM Managed Node로 등록된 쇼핑몰 EC2 인스턴스 ID |
+| `SHOP_DB_SECRET_ID` | EC2가 DB 접속정보를 조회할 Secrets Manager secret 이름 또는 ARN; 비밀값 자체가 아님 |
+
+Secrets Manager의 `SecretString`은 JSON 객체이며 `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` 문자열 키를 포함해야 합니다. EC2의 `deploy/shop-app/deploy.sh`는 이 값을 로그로 출력하지 않고 권한 `0600`인 `/opt/shop-app/app.env`에 저장한 뒤 `FLASK_ENV=lab`, `VULNERABLE_LAB=1`을 추가합니다. `SECRET_KEY`는 최초 배포에서 `/dev/urandom`을 이용해 생성하고, 이후 배포에서는 기존 환경 파일의 값을 유지합니다. 환경 파일과 실제 secret은 Git에 커밋하지 않습니다.
+
+GitHub OIDC 역할에는 대상 ECR repository의 이미지 push 권한, 대상 인스턴스에 대한 `ssm:SendCommand`, 명령 결과 확인을 위한 `ssm:GetCommandInvocation`이 필요합니다. EC2 인스턴스 프로파일에는 대상 ECR 이미지 pull, 지정한 secret의 `secretsmanager:GetSecretValue`, 그리고 secret에 고객 관리 KMS 키를 사용한다면 해당 키의 `kms:Decrypt` 권한이 필요합니다. EC2에는 정상 동작하는 SSM Agent, Docker, AWS CLI v2, `jq`, `curl`이 설치되어 있어야 합니다.
+
+SSM은 배포 스크립트를 인스턴스에 전달합니다. 스크립트가 ECR에 로그인해 새 이미지를 pull하고 기존 `shop-app` 컨테이너를 `--restart unless-stopped --env-file /opt/shop-app/app.env -p 8443:5000` 옵션으로 교체합니다. `http://127.0.0.1:8443/health`와 `/ready`가 모두 성공해야 배포가 완료됩니다. 실패하면 새 컨테이너를 제거하고 기존 컨테이너가 사용하던 이미지로 롤백을 시도하며, 롤백 성공 여부와 관계없이 워크플로는 실패로 표시됩니다. 스크립트는 `set -x`를 사용하지 않고 환경변수 내용, 비밀번호, SecretString을 출력하지 않습니다.
+
+이 저장소에는 ECR/GitHub Actions/SSM 배포 파일 작성을 허용하지만, 실제 Git push와 AWS 배포는 명시적인 별도 실행 절차로 취급합니다. 문서 및 파일 작성 과정에서는 이미지 push, SSM SendCommand, 배포를 실행하지 않습니다.
+
 ### 로그 및 인프라 연동 규격
 
-앱 이벤트는 stdout에 한 줄 JSON으로 출력합니다. 필드는 `timestamp` (UTC ISO-8601), `level`, `event_type`, `source_ip`, `target=shop-flask`, `path`, `method`, `status_code`, `request_id`입니다. 이벤트는 LOGIN_SUCCESS, LOGIN_FAILED, PRODUCT_SEARCH, PRODUCT_VIEWED, REVIEW_CREATED, ORDER_CREATED, INVALID_PATH, INPUT_VALIDATION_FAILED, DB_CONNECTION_FAILED, SERVER_ERROR입니다. 요청 본문, 검색어, 비밀번호, 쿠키, 세션 토큰, SQL 및 예외 원문은 기록하지 않습니다. Gunicorn 프로세스 시작/종료 로그는 stderr의 일반 텍스트이며 애플리케이션 JSON 이벤트와 구분하여 수집합니다. 원문 요청 URL을 남기는 Gunicorn access log는 켜지 않습니다.
+앱 이벤트는 stdout에 한 줄 JSON으로 출력합니다. 필드는 `event_id`, `scenario_id`, `severity`, `source=SHOP_APP`, `action`, `timestamp` (UTC ISO-8601), `level`, `event_type`, `source_ip`, `target=shop-flask`, `path`, `method`, `status_code`, `request_id`입니다. 시나리오와 관계없는 일반 이벤트의 scenario_id는 null입니다. 탐지는 HIGH/DETECTED, 정상 동작은 INFO/NORMAL로 기록하며 DETECTED는 차단을 뜻하지 않습니다. 기존 이벤트에 BRUTE_FORCE_SUSPECTED, SUSPICIOUS_PATH_REQUEST, SUSPICIOUS_SEARCH_INPUT, DATABASE_QUERY_ERROR, SUSPICIOUS_REVIEW_INPUT을 추가했습니다. 요청 본문, 검색어, 비밀번호, 쿠키, SQL 및 예외 원문은 기록하지 않습니다. Gunicorn 프로세스 시작/종료 로그는 stderr의 일반 텍스트이며 애플리케이션 JSON 이벤트와 구분합니다. Gunicorn access log는 켜지 않습니다.
 
 현재 `source_ip`는 직접 연결한 클라이언트 주소이며 임의의 `X-Forwarded-For`를 신뢰하지 않습니다. ALB/Ingress 도입 시 실제 프록시 수와 신뢰 경계를 확인한 뒤 전달 IP 처리를 추가해야 합니다.
 
@@ -149,9 +203,19 @@ Terraform/인프라 담당자는 다음 규격을 사용합니다.
 
 ### 현재 미구현 및 다음 단계
 
-Terraform, AWS 리소스, ECR Push, EC2/K3s 배포, GitHub Actions 배포, CloudWatch 수집 인프라는 구현하지 않았습니다. 실제 결제/배송, 회원가입, 관리자 CRUD, 의도적인 취약점 및 공격 실행 코드도 없습니다. 다음 단계는 ECR → EC2/K3s → GitHub Actions 연동이며, 그 전에 마이그레이션, HTTPS/프록시 신뢰 설정, 비밀값 관리, 로그인 시도 제한과 MySQL 동시 주문 테스트를 보완하는 것을 권장합니다.
+Terraform으로 구축된 기존 AWS 리소스를 사용하는 ECR/GitHub Actions/SSM 배포 파일만 포함합니다. AWS WAF와 CloudWatch 연동, 신규 Terraform/AWS 리소스, K3s 배포는 이 저장소에서 구현하지 않았습니다. 실제 결제/배송 API, 회원가입, 상품 삭제, 공격 실행 코드는 없습니다. 다음 작업은 별도 개선 버전에서 로그인 시도 제한, 검색 파라미터 바인딩, 후기 출력 인코딩 및 CSP 복원, MySQL 통합 테스트 보완을 권장합니다. 현재 취약 버전의 외부 공개 또는 실제 운영 배포는 범위에 포함하지 않습니다.
 
-### 직접 검증 결과 (2026-09-21)
+### vuln_service 검증 결과 (2026-09-21)
+
+- 기본 시스템 Python에는 pytest가 없어 첫 실행은 실패했습니다. 기존 `.venv/Scripts`를 PATH 앞에 둔 `python -m pytest`는 **32 passed** (기존 11개 + 새 시나리오 21개)입니다.
+- `docker compose -f docker-compose.local.yml config --quiet` 성공. 비밀값 출력 방지를 위해 config 전문은 출력하지 않았습니다.
+- 기본 build 첫 실행은 PyPI TLS 인증서 오류로 실패했습니다. 기존 `.local/compose-ca.yml`의 CA secret을 사용한 build 성공 후, 기본 build도 캐시를 사용하여 성공했습니다. TLS 검증은 비활성화하지 않았습니다.
+- `up -d --wait` 성공, 앱과 MySQL 모두 healthy. 호스트 공개는 앱의 `127.0.0.1:5000`뿐이며 MySQL 호스트 포트는 없습니다.
+- 실제 HTTP `/health`, `/ready`, `/products` 모두 200. `python tests/smoke_local.py`로 실제 MySQL 검색·로그인·후기·주문·계정 분리 검사 통과. 실행 코드를 포함하지 않는 더미 후기 1개, 주문 1개, 로그인 기록 3개가 추가로 보존됩니다.
+- `down` 완료 후 `aws-security-service_shop-db-data` Named Volume 보존 확인. `.env`, DB 백업, 키는 만들거나 출력하지 않았습니다. commit/push/merge는 실행하지 않았습니다.
+- SQLite 테스트는 이벤트와 실패 집계를 검증합니다. 브라우저에서 실제 스크립트 실행이나 공격 자동화, AWS 탐지는 검증하지 않았습니다.
+
+### 기존 기본 버전 검증 이력 (2026-09-21, 교육 모드 도입 전)
 
 - Python 3.12: `python -m pytest -q` → 11 passed (격리된 테스트 DB).
 - `docker compose -f docker-compose.local.yml config --quiet` → 성공.
@@ -163,3 +227,13 @@ Terraform, AWS 리소스, ECR Push, EC2/K3s 배포, GitHub Actions 배포, Cloud
 - 컨테이너 UID 10001, 이미지 내부 `.env` 및 빌드 CA secret 부재 확인.
 - 검증 후 `docker compose -f docker-compose.local.yml down` 수행. Named Volume `aws-security-service_shop-db-data` 보존 확인. 최초 seed 외에 통합 검증 후기 1개, 주문 1개, 로그인 시도 3개가 남아 있습니다.
 - `.env`, `.local`, `.venv` Git 제외 및 `git diff --check` 통과. commit/push/merge는 수행하지 않았습니다.
+
+### CLOUD SHOP 잔액 및 상품 관리
+
+화면 브랜드는 CLOUD SHOP이며 로그인 사용자의 보유금액을 표시합니다. 잔액 기반 모의 주문과 관리자 상품 관리 기능을 제공합니다. 보안 실습 환경이라는 기존 사용 범위와 안전 안내는 그대로 적용됩니다.
+
+초기 잔액은 user1 500,000원, user2 300,000원, guest 100,000원, test 200,000원, shop 1,000,000원, admin 5,000,000원입니다. 그 외 새 User의 기본값은 1,000,000원이며 DB CHECK 제약조건으로 음수를 금지합니다. 초기 잔액은 기존 예시 주문에 대한 소급 차감 없이 지정한 값으로 설정합니다.
+
+기존 허가된 AWS 교육용 DB에는 앱 쓰기를 중지한 뒤 `db/migrations/001_user_balance.sql`을 **한 번만** 적용하고 새 앱을 시작해야 합니다. 이 파일은 balance 컬럼·기본값·CHECK 제약을 추가하고 위 계정 잔액을 초기화합니다. MySQL DDL은 암묵적으로 커밋되므로 전체 파일을 하나의 롤백 가능한 트랜잭션으로 취급하지 마세요. 이어서 `db/migrations/002_catalog_copy.sql`은 기존 초기 상품·후기 중 원래 문구가 그대로 남아 있는 항목만 자연스러운 문구로 바꿉니다. 기존 가격·재고·주문·비밀번호는 보존합니다. 실행 전에 대상 DB와 백업을 확인하세요. 이번 작업에서는 SQL 파일만 작성했으며 DB에 적용하지 않았습니다.
+
+`schema.sql`과 `seed.sql`은 신규 빈 DB 전용입니다. 기존 DB에는 재실행하지 않습니다. SQLite 단위 테스트는 MySQL의 실제 동시 요청 행 잠금을 검증하지 않습니다.
